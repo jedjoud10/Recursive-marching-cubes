@@ -327,8 +327,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58ceb56aa83107345aaee5f0ec177134, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHierarchyIndex: 6
-  bigboi: {fileID: 1866377333}
+  maxHierarchyIndex: 5
+  offset:
+    x: -53.7
+    y: 16.7
+    z: 0
 --- !u!4 &1700487845
 Transform:
   m_ObjectHideFlags: 0
