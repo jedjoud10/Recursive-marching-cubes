@@ -10,6 +10,7 @@ using UnityEngine;
 public struct OctreeJob : IJob
 {
     public float isoThreshold;
+    public float isoObstacleThreshold;
     public int maxHierarchyIndex;
     [ReadOnly]
     public NativeArray<float> densities;
@@ -39,27 +40,7 @@ public struct OctreeJob : IJob
             Octree octree = subOctreesToCalculate[i];
             //Create octree children 
 
-            //Check if iso-threshold value is in range in the current "octree" chunk
-            float minValue = float.MaxValue;
-            float maxValue = float.MinValue;
-            for (int x2 = octree.position.x; x2 < octree.position.x + octree.size + 1; x2++)
-            {
-                for (int y2 = octree.position.y; y2 < octree.position.y + octree.size + 1; y2++)
-                {
-                    for (int z2 = octree.position.z; z2 < octree.position.z + octree.size + 1; z2++)
-                    {
-                        float density = densities[FlattenIndex(new int3(x2, y2, z2), gridSize)];
-                        if (density < minValue) minValue = density;
-                        if (density > maxValue) maxValue = density;
-                    }
-                }
-            }
 
-            //Octree is at max hierarchy level or iso-threshold value is not inrange
-            if (octree.hierarchyIndex == maxHierarchyIndex || (minValue > isoThreshold || maxValue < isoThreshold))
-            {
-                continue;
-            }
             //Create children
             for (int x = 0; x < 2; x++)
             {
@@ -72,37 +53,40 @@ public struct OctreeJob : IJob
                         octreeChild.size = octree.size / 2;
                         octreeChild.position = (octreeChild.size * new int3(x, y, z)) + octree.position;
                         octreeChild.hierarchyIndex = octree.hierarchyIndex + 1;
-                        if (octreeChild.hierarchyIndex == maxHierarchyIndex)
-                        {
-                            //The octree child is a leaf
 
-                            float minValueLeaf = float.MaxValue;
-                            float maxValueLeaf = float.MinValue;
-                            for (int x2 = octreeChild.position.x; x2 < octreeChild.position.x + octreeChild.size + 1; x2++)
+                        //Check if iso-threshold value is in range in the current "octree" chunk
+                        float minValue = float.MaxValue;
+                        float maxValue = float.MinValue;
+                        for (int x2 = octreeChild.position.x; x2 < octreeChild.position.x + octreeChild.size + 1; x2++)
+                        {
+                            for (int y2 = octreeChild.position.y; y2 < octreeChild.position.y + octreeChild.size + 1; y2++)
                             {
-                                for (int y2 = octreeChild.position.y; y2 < octreeChild.position.y + octreeChild.size + 1; y2++)
+                                for (int z2 = octreeChild.position.z; z2 < octreeChild.position.z + octreeChild.size + 1; z2++)
                                 {
-                                    for (int z2 = octreeChild.position.z; z2 < octreeChild.position.z + octreeChild.size + 1; z2++)
-                                    {
-                                        float densityLeaf = densities[FlattenIndex(new int3(x2, y2, z2), gridSize)];
-                                        if (densityLeaf < minValueLeaf) minValueLeaf = densityLeaf;
-                                        if (densityLeaf > maxValueLeaf) maxValueLeaf = densityLeaf;
-                                    }
+                                    float density = densities[FlattenIndex(new int3(x2, y2, z2), gridSize)];
+                                    if (density < minValue) minValue = density;
+                                    if (density > maxValue) maxValue = density;
                                 }
                             }
-
-                            //Only add the leaf if the value is in range
-                            if (minValueLeaf < isoThreshold && maxValueLeaf > isoThreshold)
+                        }
+                        octreeChild.isObstacle = minValue < isoObstacleThreshold && maxValue < isoObstacleThreshold;
+                        totalOctrees.Add(octreeChild);
+                        //Octree child is at the maximum hierarchy index
+                        if (octreeChild.hierarchyIndex == maxHierarchyIndex)
+                        {
+                            //Only add the leaf if it is in range
+                            if (minValue < isoThreshold && maxValue > isoThreshold)
                             {
                                 finalOctrees.Add(octreeChild);
-                                totalOctrees.Add(octreeChild);
+                                continue;
                             }
                         }
-                        else
+
+                        //Check if the octree child is in range
+                        if (minValue < isoThreshold && maxValue > isoThreshold)
                         {
-                            //Add octree child for next iteration
+                            //Add octreeChild for next iteration since it is in range
                             subOctreesToCalculate.Add(octreeChild);
-                            totalOctrees.Add(octreeChild);
                         }
                     }
                 }
@@ -114,6 +98,7 @@ public struct OctreeJob : IJob
 public struct Octree
 {
     public int hierarchyIndex;
+    public bool isObstacle;
     public int3 position;
     public int size;
 }

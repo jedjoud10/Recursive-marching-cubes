@@ -12,6 +12,7 @@ public class OctreeTest : MonoBehaviour
     public int maxHierarchyIndex = 2;
     public TerrainData data;
     public float isoThreshold;
+    public float isoObstacleThreshold;
     public bool drawGizmos;
 
     void Start()
@@ -44,6 +45,7 @@ public class OctreeTest : MonoBehaviour
         {
             maxHierarchyIndex = maxHierarchyIndex,
             isoThreshold = isoThreshold,
+            isoObstacleThreshold = isoObstacleThreshold,
             densities = densities,
             finalOctrees = octrees,
             totalOctrees = totalOctrees
@@ -66,7 +68,7 @@ public class OctreeTest : MonoBehaviour
             foreach (var octree in totalOctrees)
             {
                 Gizmos.color = Color.Lerp(Color.black, Color.white, (float)octree.hierarchyIndex / (float)maxHierarchyIndex);
-                Gizmos.DrawWireCube(math.float3(new float3(octree.position) + ((float)octree.size / 2f)), new Vector3(octree.size, octree.size, octree.size));
+                if(octree.isObstacle) Gizmos.DrawWireCube(math.float3(new float3(octree.position) + ((float)octree.size / 2f)), new Vector3(octree.size, octree.size, octree.size));
             }
         }
 
