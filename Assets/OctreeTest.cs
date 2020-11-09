@@ -69,12 +69,14 @@ public class OctreeTest : MonoBehaviour
                 Gizmos.DrawWireCube(math.float3(new float3(octree.position) + ((float)octree.size / 2f)), new Vector3(octree.size, octree.size, octree.size));
             }
         }
-        UnityEngine.Debug.Log("Final: " + stopwatch.ElapsedMilliseconds);
 
         Mesh mesh = new Mesh() { vertices = vertices.ToArray(), colors = vertexColors.ToArray(), triangles = triangles.ToArray() };
+        mesh.Optimize();
         mesh.RecalculateNormals();
         GetComponent<MeshFilter>().mesh = mesh;
+        GetComponent<MeshCollider>().sharedMesh = mesh;
 
+        UnityEngine.Debug.Log("Final: " + stopwatch.ElapsedMilliseconds);
         //Release the native containers from the memory
         vertices.Dispose();
         triangles.Dispose();
