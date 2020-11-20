@@ -14,6 +14,7 @@ public class OctreeTest : MonoBehaviour
     public float isoThreshold;
     public float isoObstacleThreshold;
     public bool drawGizmos;
+    public int octreeIndexTest;
 
     void Start()
     {
@@ -46,7 +47,7 @@ public class OctreeTest : MonoBehaviour
             maxHierarchyIndex = maxHierarchyIndex,
             isoThreshold = isoThreshold,
             isoObstacleThreshold = isoObstacleThreshold,
-            densities = densities,
+            voxels = densities,
             finalOctrees = octrees,
             totalOctrees = totalOctrees
         };
@@ -68,7 +69,19 @@ public class OctreeTest : MonoBehaviour
             foreach (var octree in totalOctrees)
             {
                 Gizmos.color = Color.Lerp(Color.black, Color.white, (float)octree.hierarchyIndex / (float)maxHierarchyIndex);
-                if(octree.isObstacle) Gizmos.DrawWireCube(math.float3(new float3(octree.position) + ((float)octree.size / 2f)), new Vector3(octree.size, octree.size, octree.size));
+                Gizmos.DrawWireCube(math.float3(new float3(octree.position) + ((float)octree.size / 2f)), new Vector3(octree.size, octree.size, octree.size));
+            }
+            
+            Gizmos.color = Color.blue;
+            Octree currentOctree = totalOctrees[octreeIndexTest];
+            Gizmos.DrawWireCube(currentOctree.center, new Vector3(currentOctree.size, currentOctree.size, currentOctree.size));
+            int octreeNeighbourIndex = FindNeighbours(totalOctrees, octreeIndexTest);
+            if (octreeNeighbourIndex != -1)
+            {
+                Octree octreeNeighbour = totalOctrees[octreeNeighbourIndex];
+                Gizmos.color = Color.red;
+                Gizmos.DrawWireCube(octreeNeighbour.center, new Vector3(octreeNeighbour.size, octreeNeighbour.size, octreeNeighbour.size));
+            
             }
         }
 
@@ -96,6 +109,41 @@ public class OctreeTest : MonoBehaviour
         return (point.x >= octree.position.x && point.x < octree.position.x + octree.size)
             && (point.y >= octree.position.y && point.y < octree.position.y + octree.size)
             && (point.z >= octree.position.z && point.z < octree.position.z + octree.size);
+    }
+
+    private int FindNeighbours(NativeList<Octree> octrees, int currentOctreeIndex) 
+    {
+        /*
+        *  0, 0, 0
+        *  0, 0, 1
+        *  0, 1, 0
+        *  0, 1, 1
+        *  1, 0, 0
+        *  1, 0, 1
+        *  1, 1, 0
+        *  1, 1, 1
+        */
+        Octree currentOctree = octrees[currentOctreeIndex];
+        int biggestNeighbour = -1;
+        //Find neighbour of bigger size
+        //Check if we are the northest child, if we are then go up the tree
+        while ((currentOctree.childDirection == 1 || currentOctree.childDirection == 3 || currentOctree.childDirection == 5 || currentOctree.childDirection == 7) && currentOctree.hierarchyIndex != 0)
+        {
+            //Go up the tree 
+            currentOctree = octrees[currentOctree.cameFromIndex];
+            UnityEngine.Debug.Log("Go up the tree, direction: " + currentOctree.childDirection + " hierarchy index: " + currentOctree.hierarchyIndex + " came from: " + currentOctree.cameFromIndex);
+        }
+        //Check if we are the root node
+        if (currentOctree.hierarchyIndex != 0)
+        {
+            UnityEngine.Debug.Log("Bruh direction: " + currentOctree.childDirection);
+            //Current node is not a parent, so don't think of it as a parent, think of it as a sibling instead
+            if (currentOctree.childDirection == 0) biggestNeighbour = currentOctree.index + 1;
+            if (currentOctree.childDirection == 2) biggestNeighbour = currentOctree.index + 1;
+            if (currentOctree.childDirection == 4) biggestNeighbour = currentOctree.index + 1;
+            if (currentOctree.childDirection == 6) biggestNeighbour = currentOctree.index + 1;
+        }
+        return biggestNeighbour;
     }
     
 }
