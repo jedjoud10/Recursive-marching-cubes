@@ -65,6 +65,7 @@ public struct OctreeJob : IJob
                         octreeChild.childDirection = d;
                         octreeChild.cameFromIndex = octree.index;
                         octreeChild.index = totalOctrees.Length;
+                        octreeChild.childIndexStart = -1;
                         //Child directions:
                         /*
                          *  0, 0, 0
@@ -76,7 +77,10 @@ public struct OctreeJob : IJob
                          *  1, 1, 0
                          *  1, 1, 1
                          */
-
+                        if (x == 0 && y == 0 && z == 0)
+                        {
+                            octree.childIndexStart = octreeChild.index;
+                        }
                         //Check if iso-threshold value is in range in the current "octree" chunk
                         float minValue = float.MaxValue;
                         float maxValue = float.MinValue;
@@ -118,6 +122,7 @@ public struct OctreeJob : IJob
                     }
                 }
             }
+            totalOctrees[octree.index] = octree;
         }
         subOctreesToCalculate.Dispose();
     }
@@ -125,7 +130,7 @@ public struct OctreeJob : IJob
 //A singuar octree leaf
 public struct Octree
 {
-    public int hierarchyIndex, size, childDirection, cameFromIndex, index;
+    public int hierarchyIndex, size, childDirection, cameFromIndex, index, childIndexStart;
     public bool isObstacle;
     public float3 center;
     public float3 worldCenterPosition;

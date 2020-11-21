@@ -4,6 +4,8 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class OctreeTest : MonoBehaviour
@@ -72,17 +74,17 @@ public class OctreeTest : MonoBehaviour
                 Gizmos.DrawWireCube(math.float3(new float3(octree.position) + ((float)octree.size / 2f)), new Vector3(octree.size, octree.size, octree.size));
             }
             
-            Gizmos.color = Color.blue;
             Octree currentOctree = totalOctrees[octreeIndexTest];
-            Gizmos.DrawWireCube(currentOctree.center, new Vector3(currentOctree.size, currentOctree.size, currentOctree.size));
-            int octreeNeighbourIndex = FindNeighbours(totalOctrees, octreeIndexTest);
-            if (octreeNeighbourIndex != -1)
+            List<int> neighbours = FindNeighbours(totalOctrees, octreeIndexTest);
+
+            foreach (var item in neighbours)
             {
-                Octree octreeNeighbour = totalOctrees[octreeNeighbourIndex];
+                Octree octreeNeighbour = totalOctrees[item];
                 Gizmos.color = Color.red;
                 Gizmos.DrawWireCube(octreeNeighbour.center, new Vector3(octreeNeighbour.size, octreeNeighbour.size, octreeNeighbour.size));
-            
-            }
+            }            
+            Gizmos.color = Color.blue;
+            Gizmos.DrawWireCube(currentOctree.center, new Vector3(currentOctree.size, currentOctree.size, currentOctree.size));
         }
 
         Mesh mesh = new Mesh() { vertices = vertices.ToArray(), colors = vertexColors.ToArray(), triangles = triangles.ToArray() };
@@ -91,13 +93,13 @@ public class OctreeTest : MonoBehaviour
         GetComponent<MeshFilter>().mesh = mesh;
         GetComponent<MeshCollider>().sharedMesh = mesh;
 
-        UnityEngine.Debug.Log("Final: " + stopwatch.ElapsedMilliseconds);
         //Release the native containers from the memory
         vertices.Dispose();
         triangles.Dispose();
         octrees.Dispose();
         densities.Dispose();
 
+        UnityEngine.Debug.Log("Final: " + stopwatch.ElapsedMilliseconds);
         stopwatch.Stop();
     }
     private void OnDrawGizmos()
@@ -111,7 +113,44 @@ public class OctreeTest : MonoBehaviour
             && (point.z >= octree.position.z && point.z < octree.position.z + octree.size);
     }
 
-    private int FindNeighbours(NativeList<Octree> octrees, int currentOctreeIndex) 
+    //Find the neighbours
+    private List<int> FindNeighbours(NativeList<Octree> octrees, int currentOctreeIndex) 
+    {
+        Octree rootOctree = octrees[currentOctreeIndex];
+        Octree currentOctree;
+        List<int> subOctreesToSearch = new List<int>();
+        List<int> finalList = new List<int>();
+        subOctreesToSearch.Add(0);
+        //Recursively find the correct children
+        for (int i = 0; i < subOctreesToSearch.Count; i++)
+        {
+            currentOctree = octrees[subOctreesToSearch[i]];
+            if (currentOctree.childIndexStart != -1 && currentOctree.index != rootOctree.index)
+            {
+                //Search through the children
+                for (int k = 0; k < 8; k++)
+                {
+                    Octree childOctree = octrees[currentOctree.childIndexStart + k];
+                    //finalList.Add(currentOctree.childIndexStart + k);
+                    if (OctreeOctreeIntersectTest(rootOctree, childOctree))
+                    {
+                        if (childOctree.childIndexStart != -1) subOctreesToSearch.Add(childOctree.index);
+                        else finalList.Add(childOctree.index);
+                    }
+                }
+            }
+        }
+        return finalList;
+    }
+    //Octree-octree intersect test
+    private bool OctreeOctreeIntersectTest(Octree rootOctree, Octree currentOctree) 
+    {
+        bool3 dir1 = new float3(rootOctree.position) - 0.5f <= currentOctree.position + currentOctree.size;
+        bool3 dir2 = new float3(rootOctree.position) + rootOctree.size + 0.5f >= currentOctree.position;
+        bool3 final = dir1 & dir2;
+        return final.x && final.y && final.z;
+    }
+    private int FindBiggestNeighbour(NativeList<Octree> octrees, int currentOctreeIndex) 
     {
         /*
         *  0, 0, 0
@@ -131,12 +170,10 @@ public class OctreeTest : MonoBehaviour
         {
             //Go up the tree 
             currentOctree = octrees[currentOctree.cameFromIndex];
-            UnityEngine.Debug.Log("Go up the tree, direction: " + currentOctree.childDirection + " hierarchy index: " + currentOctree.hierarchyIndex + " came from: " + currentOctree.cameFromIndex);
         }
         //Check if we are the root node
         if (currentOctree.hierarchyIndex != 0)
         {
-            UnityEngine.Debug.Log("Bruh direction: " + currentOctree.childDirection);
             //Current node is not a parent, so don't think of it as a parent, think of it as a sibling instead
             if (currentOctree.childDirection == 0) biggestNeighbour = currentOctree.index + 1;
             if (currentOctree.childDirection == 2) biggestNeighbour = currentOctree.index + 1;
@@ -145,7 +182,57 @@ public class OctreeTest : MonoBehaviour
         }
         return biggestNeighbour;
     }
-    
+    private List<int> FindSmallerNeighbourChildren(NativeList<Octree> octrees, int currentNeighbourOctreeIndex, int currentOctreeIndex) 
+    {
+        /*
+        *  0, 0, 0
+        *  0, 0, 1
+        *  0, 1, 0
+        *  0, 1, 1
+        *  1, 0, 0
+        *  1, 0, 1
+        *  1, 1, 0
+        *  1, 1, 1
+        */
+        List<int> subOctreesToSearch = new List<int>();
+        List<int> finalList = new List<int>();
+        subOctreesToSearch.Add(currentNeighbourOctreeIndex);
+        Octree currentOctree = octrees[currentNeighbourOctreeIndex];
+        Octree currentRootOctree = octrees[currentOctreeIndex];
+        int octreeDirection = -1;
+        //Octree doesn't have any children, so exit out of the method
+        if (currentOctree.childIndexStart == -1)
+        {
+            finalList.Add(currentNeighbourOctreeIndex);
+            return finalList;
+        }
+        //Recursively find the correct children
+        for (int i = 0; i < subOctreesToSearch.Count; i++)
+        {
+            currentOctree = octrees[subOctreesToSearch[i]];
+            if (currentOctree.childIndexStart != -1)
+            {
+                octreeDirection = currentOctree.childDirection;
+                //Search through the children
+                for (int k = 0; k < 8; k++)
+                {
+                    Octree childOctree = octrees[currentOctree.childIndexStart + k];
+                    int childDirection = childOctree.childDirection;
+                    bool correctDirection = childDirection == 0 || childDirection == 2 || childDirection == 4 || childDirection == 6;
+                    //finalList.Add(currentOctree.childIndexStart + k);
+                    UnityEngine.Debug.Log(childOctree.hierarchyIndex + " : " + currentRootOctree.hierarchyIndex);
+                    if (correctDirection && childOctree.hierarchyIndex >= currentRootOctree.hierarchyIndex)
+                    {                        
+                        if (childOctree.childIndexStart != -1) subOctreesToSearch.Add(childOctree.index);
+                        else finalList.Add(childOctree.index);                        
+                    }   
+                }
+            }
+        }
+
+        return finalList;
+    }
+
 }
 [Serializable]
 public struct TerrainData 
